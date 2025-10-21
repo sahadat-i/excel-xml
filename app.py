@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 from lxml import etree
 import time
+from datetime import datetime
+
 
 # ✅ Fungsi cache untuk baca Excel
 @st.cache_data
@@ -9,6 +11,22 @@ def load_excel(file):
     raw = pd.read_excel(file, sheet_name="Sheet1", header=None)
     df = pd.read_excel(file, sheet_name="Sheet1", skiprows=1)
     return raw, df
+
+def format_tanggal_excel(excel_date):
+    if isinstance(excel_date, datetime):
+        return excel_date.strftime("%Y-%m-%d")
+    try:
+        # Coba parsing dari string umum seperti "15/10/2025" atau "2025-10-15"
+        for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"):
+            try:
+                return datetime.strptime(str(excel_date), fmt).strftime("%Y-%m-%d")
+            except ValueError:
+                continue
+        raise ValueError("Format tanggal tidak dikenali")
+    except Exception as e:
+        st.warning(f"⚠️ Tanggal tidak valid: {excel_date}")
+        return ""
+
 
 st.set_page_config(page_title="Excel to Accurate XML", layout="centered")
 st.title("📄 Excel to Accurate XML Converter")
@@ -78,8 +96,10 @@ if st.session_state.branch_code:
 
         st.success("✅ File berhasil dibaca. Preview data:")
         # st.dataframe(df) non pagination
-
+        df["TANGGAL_RAW"] = pd.to_datetime(df["TANGGAL"], errors="coerce", origin="1899-12-30", unit="D")
+        df["TANGGAL"] = df["TANGGAL_RAW"].dt.strftime("%Y-%m-%d")  # preview
         df_display = df.copy()
+        df_display.drop(columns=["TANGGAL_RAW"], inplace=True) 
         df_display.insert(0, "No", range(1, len(df_display) + 1))
 
         # pagination version
@@ -131,7 +151,8 @@ if st.session_state.branch_code:
 
                     # Common fields
                     etree.SubElement(entry, "JVNUMBER").text = str(row["NO INVOICE"])
-                    etree.SubElement(entry, "TRANSDATE").text = "2025-10-15"
+                    formatted_date = format_tanggal_excel(row["TANGGAL_RAW"])
+                    etree.SubElement(entry, "TRANSDATE").text = formatted_date
                     etree.SubElement(entry, "SOURCE").text = "GL"
                     etree.SubElement(entry, "TRANSTYPE").text = "other payment" if trans_type == "Pembayaran" else "other receipt"
                     etree.SubElement(entry, "TRANSDESCRIPTION").text = "" if pd.isna(row["MEMO"]) else str(row["MEMO"])
