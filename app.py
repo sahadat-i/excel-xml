@@ -126,56 +126,65 @@ if st.session_state.branch_code:
         else:
             st.success("✅ Data valid. Siap diproses.")
             if st.button("🔄 Generate XML"):
-                progress = st.progress(0, text="⏳ Sedang memproses data...")
-                root = etree.Element("NMEXML", EximID="12", BranchCode=st.session_state.branch_code, ACCOUNTANTCOPYID="")
-                transactions = etree.SubElement(root, "TRANSACTIONS", OnError="CONTINUE")
+                invalid_rows = df[df["TANGGAL_RAW"].isnull()].copy()
+                if not invalid_rows.empty:
+                    invalid_rows.insert(0, "No", range(1, len(invalid_rows) + 1))
+                    if "TANGGAL_RAW" in invalid_rows.columns:
+                        invalid_rows.drop(columns=["TANGGAL_RAW"], inplace=True)
+                    st.error("❌ Gagal generate XML. Ada baris dengan TANGGAL kosong.")
+                    st.dataframe(invalid_rows, use_container_width=True)
+                else:
 
-                for idx, row in df.iterrows():
-                    transaction_id = start_id + idx
-                    tag_name = "OTHERPAYMENT" if trans_type == "Pembayaran" else "OTHERDEPOSIT"
-                    entry = etree.SubElement(transactions, tag_name, operation="Add", REQUESTID="1")
-                    etree.SubElement(entry, "TRANSACTIONID").text = str(transaction_id)
+                    progress = st.progress(0, text="⏳ Sedang memproses data...")
+                    root = etree.Element("NMEXML", EximID="12", BranchCode=st.session_state.branch_code, ACCOUNTANTCOPYID="")
+                    transactions = etree.SubElement(root, "TRANSACTIONS", OnError="CONTINUE")
 
-                    # ACCOUNTLINE
-                    accountline = etree.SubElement(entry, "ACCOUNTLINE", operation="Add")
-                    etree.SubElement(accountline, "KeyID").text = "1"
-                    etree.SubElement(accountline, "GLACCOUNT").text = str(row["NO AKUN"])
-                    amount_field = "TOTAL BAYAR" if trans_type == "Pembayaran" else "TOTAL TERIMA"
-                    etree.SubElement(accountline, "GLAMOUNT").text = str(row[amount_field])
-                    etree.SubElement(accountline, "DESCRIPTION").text = "" if pd.isna(row["DESCRIPTION"]) else str(row["DESCRIPTION"])
-                    rate_value = row.get("RATE", "")
-                    rate_clean = str(rate_value).strip()
-                    etree.SubElement(accountline, "RATE").text = "1" if rate_clean == "" or pd.isna(rate_value) else rate_clean
-                    for tag in ["TXDATE", "POSTED", "CURRENCYNAME"]:
-                        etree.SubElement(accountline, tag)
+                    for idx, row in df.iterrows():
+                        transaction_id = start_id + idx
+                        tag_name = "OTHERPAYMENT" if trans_type == "Pembayaran" else "OTHERDEPOSIT"
+                        entry = etree.SubElement(transactions, tag_name, operation="Add", REQUESTID="1")
+                        etree.SubElement(entry, "TRANSACTIONID").text = str(transaction_id)
 
-                    # Common fields
-                    etree.SubElement(entry, "JVNUMBER").text = str(row["NO INVOICE"])
-                    formatted_date = format_tanggal_excel(row["TANGGAL_RAW"])
-                    etree.SubElement(entry, "TRANSDATE").text = formatted_date
-                    etree.SubElement(entry, "SOURCE").text = "GL"
-                    etree.SubElement(entry, "TRANSTYPE").text = "other payment" if trans_type == "Pembayaran" else "other receipt"
-                    etree.SubElement(entry, "TRANSDESCRIPTION").text = "" if pd.isna(row["MEMO"]) else str(row["MEMO"])
-                    etree.SubElement(entry, "JVAMOUNT").text = str(row[amount_field])
-                    etree.SubElement(entry, "GLACCOUNT").text = str(row["AKUN BANK"])
-                    etree.SubElement(entry, "RATE").text = "1"
+                        # ACCOUNTLINE
+                        accountline = etree.SubElement(entry, "ACCOUNTLINE", operation="Add")
+                        etree.SubElement(accountline, "KeyID").text = "1"
+                        etree.SubElement(accountline, "GLACCOUNT").text = str(row["NO AKUN"])
+                        amount_field = "TOTAL BAYAR" if trans_type == "Pembayaran" else "TOTAL TERIMA"
+                        etree.SubElement(accountline, "GLAMOUNT").text = str(row[amount_field])
+                        etree.SubElement(accountline, "DESCRIPTION").text = "" if pd.isna(row["DESCRIPTION"]) else str(row["DESCRIPTION"])
+                        rate_value = row.get("RATE", "")
+                        rate_clean = str(rate_value).strip()
+                        etree.SubElement(accountline, "RATE").text = "1" if rate_clean == "" or pd.isna(rate_value) else rate_clean
+                        for tag in ["TXDATE", "POSTED", "CURRENCYNAME"]:
+                            etree.SubElement(accountline, tag)
 
-                    # Field khusus
-                    # if trans_type == "Pembayaran":
-                    #     etree.SubElement(entry, "CHEQUENO").text = "" if pd.isna(row["CHEQUE NO"]) else str(row["CHEQUE NO"])
-                    #     etree.SubElement(entry, "PAYEE").text = "" if pd.isna(row["PAYEE"]) else str(row["PAYEE"])
-                    #     etree.SubElement(entry, "VOIDCHEQUE").text = "0"
-                    # else:
-                    #     etree.SubElement(entry, "RECEIPTNO").text = "" if pd.isna(row["RECEIPT NO"]) else str(row["RECEIPT NO"])
-                    #     etree.SubElement(entry, "CUSTOMER").text = "" if pd.isna(row["CUSTOMER"]) else str(row["CUSTOMER"])
-                    #     etree.SubElement(entry, "VOIDRECEIPT").text = "0"
+                        # Common fields
+                        etree.SubElement(entry, "JVNUMBER").text = str(row["NO INVOICE"])
+                        formatted_date = format_tanggal_excel(row["TANGGAL_RAW"])
+                        etree.SubElement(entry, "TRANSDATE").text = formatted_date
+                        etree.SubElement(entry, "SOURCE").text = "GL"
+                        etree.SubElement(entry, "TRANSTYPE").text = "other payment" if trans_type == "Pembayaran" else "other receipt"
+                        etree.SubElement(entry, "TRANSDESCRIPTION").text = "" if pd.isna(row["MEMO"]) else str(row["MEMO"])
+                        etree.SubElement(entry, "JVAMOUNT").text = str(row[amount_field])
+                        etree.SubElement(entry, "GLACCOUNT").text = str(row["AKUN BANK"])
+                        etree.SubElement(entry, "RATE").text = "1"
 
-                    # Update progress
-                    progress.progress((idx + 1) / len(df), text=f"⏳ Memproses baris {idx + 1} dari {len(df)}")
-                    time.sleep(0.05)
-                    progress.empty()  # Hilangkan progress bar
+                        # Field khusus
+                        # if trans_type == "Pembayaran":
+                        #     etree.SubElement(entry, "CHEQUENO").text = "" if pd.isna(row["CHEQUE NO"]) else str(row["CHEQUE NO"])
+                        #     etree.SubElement(entry, "PAYEE").text = "" if pd.isna(row["PAYEE"]) else str(row["PAYEE"])
+                        #     etree.SubElement(entry, "VOIDCHEQUE").text = "0"
+                        # else:
+                        #     etree.SubElement(entry, "RECEIPTNO").text = "" if pd.isna(row["RECEIPT NO"]) else str(row["RECEIPT NO"])
+                        #     etree.SubElement(entry, "CUSTOMER").text = "" if pd.isna(row["CUSTOMER"]) else str(row["CUSTOMER"])
+                        #     etree.SubElement(entry, "VOIDRECEIPT").text = "0"
+
+                        # Update progress
+                        progress.progress((idx + 1) / len(df), text=f"⏳ Memproses baris {idx + 1} dari {len(df)}")
+                        time.sleep(0.05)
+                        progress.empty()  # Hilangkan progress bar
 
 
-                xml_bytes = etree.tostring(root, pretty_print=True, xml_declaration=True, encoding="UTF-8")
-                nama_file = "pembayaran_accurate.xml" if trans_type == "Pembayaran" else "penerimaan_accurate.xml"
-                st.download_button("⬇️ Download XML", data=xml_bytes, file_name=nama_file, mime="application/xml")
+                    xml_bytes = etree.tostring(root, pretty_print=True, xml_declaration=True, encoding="UTF-8")
+                    nama_file = "pembayaran_accurate.xml" if trans_type == "Pembayaran" else "penerimaan_accurate.xml"
+                    st.download_button("⬇️ Download XML", data=xml_bytes, file_name=nama_file, mime="application/xml")
