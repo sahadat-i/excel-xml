@@ -54,14 +54,17 @@ if not st.session_state.branch_code and not st.session_state.xml_uploaded:
     uploaded_xml = st.file_uploader("Upload file XML hasil ekspor dari Accurate", type=["xml"])
 
     if uploaded_xml:
-        branch_code = extract_branch_code(uploaded_xml)
-        if branch_code:
-            st.session_state.branch_code = branch_code
-            st.success(f"✅ BranchCode terdeteksi: `{branch_code}`")
-            time.sleep(1)  # Delay 1 detik sebelum sembunyikan uploader XML
-            st.session_state.xml_uploaded = True
+        if uploaded_xml.type != "text/xml" and not uploaded_xml.name.endswith(".xml"):
+            st.warning("⚠️ File yang diunggah bukan file XML. Harap upload file berekstensi `.xml` dari Accurate.")
         else:
-            st.warning("⚠️ BranchCode tidak ditemukan di file XML.")
+            branch_code = extract_branch_code(uploaded_xml)
+            if branch_code:
+                st.session_state.branch_code = branch_code
+                st.success(f"✅ BranchCode terdeteksi: `{branch_code}`")
+                time.sleep(1)  # Delay 1 detik sebelum sembunyikan uploader XML
+                st.session_state.xml_uploaded = True
+            else:
+                st.warning("⚠️ BranchCode tidak ditemukan di file XML.")
 
 
 if st.session_state.branch_code:
@@ -183,7 +186,6 @@ if st.session_state.branch_code:
                         progress.progress((idx + 1) / len(df), text=f"⏳ Memproses baris {idx + 1} dari {len(df)}")
                         time.sleep(0.05)
                         progress.empty()  # Hilangkan progress bar
-
 
                     xml_bytes = etree.tostring(root, pretty_print=True, xml_declaration=True, encoding="UTF-8")
                     nama_file = "pembayaran_accurate.xml" if trans_type == "Pembayaran" else "penerimaan_accurate.xml"
