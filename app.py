@@ -27,6 +27,14 @@ def format_tanggal_excel(excel_date):
         st.warning(f"⚠️ Tanggal tidak valid: {excel_date}")
         return ""
 
+def convert_tanggal_column(df):
+    if pd.api.types.is_datetime64_any_dtype(df["TANGGAL"]):
+        return df["TANGGAL"]  # Sudah datetime, langsung pakai
+    elif pd.api.types.is_numeric_dtype(df["TANGGAL"]):
+        return pd.to_datetime(df["TANGGAL"], origin="1899-12-30", unit="D", errors="coerce")
+    else:
+        return pd.to_datetime(df["TANGGAL"], dayfirst=True, errors="coerce")
+
 
 st.set_page_config(page_title="Excel to Accurate XML", layout="centered")
 st.title("📄 Excel to Accurate XML Converter")
@@ -99,7 +107,7 @@ if st.session_state.branch_code:
 
         st.success("✅ File berhasil dibaca. Preview data:")
         # st.dataframe(df) non pagination
-        df["TANGGAL_RAW"] = pd.to_datetime(df["TANGGAL"], errors="coerce", origin="1899-12-30", unit="D")
+        df["TANGGAL_RAW"] = convert_tanggal_column(df)
         df["TANGGAL"] = df["TANGGAL_RAW"].dt.strftime("%Y-%m-%d")  # preview
         df_display = df.copy()
         df_display.drop(columns=["TANGGAL_RAW"], inplace=True) 
