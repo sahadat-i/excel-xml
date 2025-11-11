@@ -90,20 +90,40 @@ if st.session_state.branch_code:
 
         # Pilih jenis transaksi
         trans_type = st.selectbox("Pilih jenis transaksi:", ["Pembayaran", "Penerimaan"])
-
+        # Kolom wajib umum
+        required_fields = {
+            "NO_INVOICE": "No Invoice",
+            "TANGGAL": "Tanggal",
+            "NAMA_BANK": "Nama Bank",
+            "AKUN_BANK": "Akun Bank",
+            "MEMO": "Memo",
+            "NAMA_AKUN": "Nama Akun",
+            "NO_AKUN": "No Akun",
+        }
         # Baca data mulai dari baris ke-2 (karena baris 1 = start_id) ambil header
         df.columns = df.columns.str.strip().str.upper()
 
         # Validasi kolom wajib
         if trans_type == "Pembayaran":
             required_cols = ["NO INVOICE", "TANGGAL","NO AKUN", "NAMA AKUN","TOTAL BAYAR", "DESCRIPTION", "MEMO", "CHEQUE NO", "PAYEE", "AKUN BANK","NAMA BANK"]
+            required_fields["TOTAL BAYAR"] = "TOTAL BAYAR"
         else:
             required_cols = ["NO INVOICE", "TANGGAL", "NO AKUN", "NAMA AKUN","TOTAL TERIMA", "DESCRIPTION", "MEMO", "AKUN BANK", "NAMA BANK","RATE"]
-
+            required_fields["TOTAL TERIMA"] = "TOTAL TERIMA"
+            
         missing = [col for col in required_cols if col not in df.columns]
         if missing:
             st.error(f"❌ Kolom berikut wajib ada di Excel: {', '.join(missing)}")
             st.stop()
+
+            # ⚠️ Validasi isi data wajib
+        for col, label in required_fields.items():
+            if col in df.columns:
+                mask = df[col].isnull() | df[col].eq("") | df[col].astype(str).str.lower().isin(["none", "nan"])
+                if mask.any():
+                    st.warning(f"⚠️ Gagal Proses `{label}` harus diisi. Ada {mask.sum()} baris yang kosong atau 'None'.\nSilakan diperbaiki & Upload Ulang.")
+                    st.dataframe(df[mask])
+                    st.stop()
 
         st.success("✅ File berhasil dibaca. Preview data:")
         # st.dataframe(df) non pagination
